@@ -299,7 +299,10 @@ class DataService {
                                     //http://en.wikipedia.org/wiki/Arabic_(Unicode_block)
                                     let ar = hizbId != -1 ? "۞ \(arabic[i] as! String)" : arabic[i] as! String
                                     let nonvocalar = hizbId != -1 ? "۞ \(arabic2[i] as! String)" : arabic[i] as! String
-                                    verse = Verse(id: verseId, chapterId: chapterId - 1, arabic: ar, nonVocalArabic: nonvocalar, translation: item.object(forKey: "t") as! String, transcription: transcription[i] as! String, hizbId: hizbId)
+                                    let rawTranscription = (transcription[i] as! String)
+                                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                                        .replacingOccurrences(of: "\u{00AC}\u{2020}", with: " ") // remove HTML &nbsp; artifact
+                                    verse = Verse(id: verseId, chapterId: chapterId - 1, arabic: ar, nonVocalArabic: nonvocalar, translation: item.object(forKey: "t") as! String, transcription: rawTranscription, hizbId: hizbId)
                                     verses.append(verse)
                                     
                                     if chapterId > 0 {

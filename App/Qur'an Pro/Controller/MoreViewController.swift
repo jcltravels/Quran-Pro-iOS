@@ -185,11 +185,11 @@ class MoreViewController: UIViewController, UITableViewDelegate, UITableViewData
         else if setting.type == SettingType.settingTypeAppReview {
             //Flurry.logEvent(FlurryEvent.writeAReview)
             let appUrl = kReviewUrl.localizeWithFormat(kAppId)
-            UIApplication.shared.openURL(URL(string: appUrl)!)
+            UIApplication.shared.open(URL(string: appUrl)!)
         }
         else if setting.type == SettingType.settingTypeIslamicApps {
             //Flurry.logEvent(FlurryEvent.islamicApps)
-            UIApplication.shared.openURL(URL(string: kMoreAppsUrl)!)
+            UIApplication.shared.open(URL(string: kMoreAppsUrl)!)
         }
 
         if viewController != nil {
@@ -219,7 +219,7 @@ class MoreViewController: UIViewController, UITableViewDelegate, UITableViewData
             footerView!.numberOfLines = 0
             footerView!.textAlignment = NSTextAlignment.center
             footerView!.font = kMoreTableFooterFont
-            footerView!.textColor = UIColor.black
+            footerView!.textColor = UIColor.label
             return footerView
         }
         return nil

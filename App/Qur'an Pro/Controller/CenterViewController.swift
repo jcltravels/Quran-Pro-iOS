@@ -46,7 +46,12 @@ class CenterViewController: UIViewController, UITableViewDelegate, UITableViewDa
         originalTitleView = self.navigationItem.titleView
         originalLeftBarButtonItems = self.navigationItem.leftBarButtonItems
         currentAudioChapter = dollar.currentReciter.audioChapters[dollar.currentChapter.id]
-        activityIndicatorView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.white)
+        if #available(iOS 13.0, *) {
+            activityIndicatorView = UIActivityIndicatorView(style: .medium)
+            activityIndicatorView.color = .white
+        } else {
+            activityIndicatorView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.white)
+        }
         activityIndicatorView.startAnimating()
         progress.setProgress(0, animated: false)
         view.sendSubviewToBack(tableView)
@@ -603,68 +608,54 @@ class CenterViewController: UIViewController, UITableViewDelegate, UITableViewDa
             //Flurry.logEvent(FlurryEvent.removeBookmark)
         })
 
-        var didFindVerseStart = false
-        var didFindVerseEnd = false
-        var startVerseId = -1
-        var endVerseId = -1
+        var foundStartVerse: Verse? = nil
+        var foundEndVerse: Verse? = nil
         var startRepeatTitle = "Set A-B Repeat Start".local
         var endRepeatTitle = "Set A-B Repeat End".local
 
-        for verse in dollar.currentChapter.verses {
-            if ABRepeatService.sharedInstance().has(verse) {
-                if(!didFindVerseStart) {
-                    didFindVerseStart = true
-                    startVerseId = verse.id
-                    startRepeatTitle = "Set A-B Repeat Start (" + String(startVerseId) + ")"
-                    continue
-                }
-                if(!didFindVerseEnd && didFindVerseStart) {
-                    didFindVerseEnd = true
-                    endVerseId = verse.id
-                    endRepeatTitle = "Set A-B Repeat End (" + String(endVerseId) + ")"
+        for v in dollar.currentChapter.verses {
+            if ABRepeatService.sharedInstance().has(v) {
+                if foundStartVerse == nil {
+                    foundStartVerse = v
+                    startRepeatTitle = "Set A-B Repeat Start (\(v.id))".local
+                } else if foundEndVerse == nil {
+                    foundEndVerse = v
+                    endRepeatTitle = "Set A-B Repeat End (\(v.id))".local
                     break
                 }
             }
         }
 
-        //Create and add the add-abrepeat action
+        //Create and add the set-A action
         let setABRepeatStart = UIAlertAction(title: startRepeatTitle, style: .default, handler: {
             (alert: UIAlertAction!) -> Void in
-            if(startVerseId >= 0) {
-                ABRepeatService.sharedInstance().remove(dollar.currentChapter.verses[startVerseId])
+            // Remove the old start marker if present
+            if let old = foundStartVerse {
+                ABRepeatService.sharedInstance().remove(old)
             }
             ABRepeatService.sharedInstance().add(verse)
-            startVerseId = verse.id
-            if(verse.id > endVerseId && endVerseId >= 0) {
-                ABRepeatService.sharedInstance().remove(dollar.currentChapter.verses[endVerseId])
-                endVerseId = -1
+            // If current end is before the new start, clear it too
+            if let endV = foundEndVerse, endV.id <= verse.id {
+                ABRepeatService.sharedInstance().remove(endV)
             }
             self.service.stopPlaying()
             self.service.setupABRepeatPlayer()
-            //NSNotificationCenter.defaultCenter().postNotificationName(kABRpeatChangedNotification, object: nil,  userInfo:nil)
-            //reload the cells in order to update the bookmark icon
-            //self.tableViewReloadData()
-            //Flurry.logEvent(FlurryEvent.addBookmark)
         })
 
-        //Create and add the add-abrepeat action
+        //Create and add the set-B action
         let setABRepeatEnd = UIAlertAction(title: endRepeatTitle, style: .default, handler: {
             (alert: UIAlertAction!) -> Void in
-            if(endVerseId >= 0) {
-                ABRepeatService.sharedInstance().remove(dollar.currentChapter.verses[endVerseId])
-                endVerseId = -1
+            // Remove old end marker
+            if let old = foundEndVerse {
+                ABRepeatService.sharedInstance().remove(old)
             }
-            if(verse.id > startVerseId) {
+            // Only allow end to be after start
+            let startId = foundStartVerse?.id ?? -1
+            if verse.id > startId {
                 ABRepeatService.sharedInstance().add(verse)
-                endVerseId = verse.id
             }
             self.service.setupABRepeatPlayer()
             self.service.resetABRepeat()
-            //self.service.resumePlaying()
-            //NSNotificationCenter.defaultCenter().postNotificationName(kABRpeatChangedNotification, object: nil,  userInfo:nil)
-            //reload the cells in order to update the bookmark icon
-            //self.tableViewReloadData()
-            //Flurry.logEvent(FlurryEvent.addBookmark)
         })
 
         //Create and add the remove-abrepeat action
@@ -808,7 +799,7 @@ class CenterViewController: UIViewController, UITableViewDelegate, UITableViewDa
         //As with find and replace, next create a regular expression using your convenience initializer and fetch an array of all matches for the regular expression within the label’s text.
         do {
             let regex = try NSRegularExpression(pattern: searchText, options: NSRegularExpression.Options.caseInsensitive)
-            let range = NSMakeRange(0, (label.text!).characters.count)
+            let range = NSMakeRange(0, (label.text!).count)
             let matches = regex.matches(in: label.text!, options: [], range: range)
             //Loop through each match (casting them as NSTextCheckingResult objects), and add a yellow colour background attribute for each one.
             for match in matches as [NSTextCheckingResult] {

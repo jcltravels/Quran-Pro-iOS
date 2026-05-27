@@ -10,6 +10,7 @@
 import UIKit
 import AVFoundation
 import MessageUI
+import UserNotifications
 
 enum UIUserInterfaceIdiom : Int {
     case unspecified
@@ -47,29 +48,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
         
         //Style the navigation bar
         UINavigationBar.appearance().tintColor = kUINavigationBarTintColor
-        UINavigationBar.appearance().backgroundColor = UIColor(red: 79, green: 106, blue: 173)
-
-        UINavigationBar.appearance().setBackgroundImage(UIImage(named: kUINavigationBarBackgroundImage), for: UIBarMetrics.default)
-        //let shadow = NSShadow()
-        //shadow.shadowOffset = kUINavigationBarTitleShadowSize
-        
-        UINavigationBar.appearance().titleTextAttributes = convertToOptionalNSAttributedStringKeyDictionary([NSAttributedString.Key.foregroundColor.rawValue: kUINavigationBarTitleColor,
-            //NSShadowAttributeName: shadow,
-            NSAttributedString.Key.font.rawValue: kUINavigationBarTitleFont
-        ])
         
         if #available(iOS 15.0, *) {
             let navBarAppearance = UINavigationBarAppearance()
             navBarAppearance.configureWithOpaqueBackground()
             navBarAppearance.backgroundColor = UIColor(red: 79, green: 106, blue: 173)
-            navBarAppearance.titleTextAttributes = [NSAttributedString.Key.foregroundColor: UIColor.white,
-                                                    NSAttributedString.Key.font: kUINavigationBarTitleFont]
+            navBarAppearance.titleTextAttributes = [
+                NSAttributedString.Key.foregroundColor: UIColor.white,
+                NSAttributedString.Key.font: kUINavigationBarTitleFont
+            ]
             UINavigationBar.appearance().standardAppearance = navBarAppearance
             UINavigationBar.appearance().scrollEdgeAppearance = navBarAppearance
+            UINavigationBar.appearance().compactAppearance = navBarAppearance
+        } else {
+            UINavigationBar.appearance().backgroundColor = UIColor(red: 79, green: 106, blue: 173)
+            UINavigationBar.appearance().setBackgroundImage(UIImage(named: kUINavigationBarBackgroundImage), for: UIBarMetrics.default)
+            UINavigationBar.appearance().titleTextAttributes = [
+                NSAttributedString.Key.foregroundColor: kUINavigationBarTitleColor,
+                NSAttributedString.Key.font: kUINavigationBarTitleFont
+            ]
         }
         
-        //Style the status bar
-        UIApplication.shared.setStatusBarStyle(kUIStatusBarStyle, animated: false)
+        // Status bar style is set via UIStatusBarStyle in Info.plist
         
         UIApplication.shared.beginReceivingRemoteControlEvents()
         self.becomeFirstResponder()
@@ -83,8 +83,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
         // Bookmarks service
         BookmarkService.sharedInstance()
         
-        if(UIApplication.instancesRespond(to: #selector(UIApplication.registerUserNotificationSettings(_:)))) {
-            UIApplication.shared.registerUserNotificationSettings(UIUserNotificationSettings(types: [.alert, .badge], categories: nil))
+        if #available(iOS 10.0, *) {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge]) { _, _ in }
         }
 
         var error: NSError?
@@ -174,7 +174,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
         try! AVAudioSession.sharedInstance().setActive(true)
         
         if appUrlToOpen != nil {
-            UIApplication.shared.openURL(URL(string: appUrlToOpen!)!)
+            UIApplication.shared.open(URL(string: appUrlToOpen!)!)
             appUrlToOpen = nil
         }
     }

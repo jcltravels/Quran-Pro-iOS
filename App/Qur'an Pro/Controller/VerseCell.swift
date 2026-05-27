@@ -20,6 +20,11 @@ class VerseCell: UITableViewCell {
     override func awakeFromNib() {
         super.awakeFromNib()
         verseId = 0
+        if #available(iOS 13.0, *) {
+            arabic.textColor = .label
+            translation.textColor = .secondaryLabel
+            transcription.textColor = .secondaryLabel
+        }
     }
     
     override func setSelected(_ selected: Bool, animated: Bool) {

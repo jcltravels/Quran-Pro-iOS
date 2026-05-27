@@ -36,18 +36,18 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
     var delegate: AudioDelegate?
     var currentVerseIndex: Int!
     var isPaused: Bool!
-    var fullRepeatEndIndex: Int!
-    var isFullRepeat: Bool!
-    var savedCurrentVerseIndex: Int!
-    var fullRepeatCount: Int!
-    var currentRepeatCount: Int!
-    var startIndex: Int!
-    var endIndex: Int!
-    var didFindVerseStart: Bool!
-    var didFindVerseEnd: Bool!
     var abRepeatStartIndex: Int!
     var abRepeatEndIndex: Int!
-    var setupABRepeat: Bool!
+
+    // A-B repeat state machine
+    private enum ABPhase { case introNewVerse, playSequence }
+    private var abPhase: ABPhase = .introNewVerse
+    // The index of the "new" verse currently being introduced in this phase
+    private var abPhaseNewVerseIndex: Int = 0
+    // How many times we've played the current accumulated sequence
+    private var abSequenceRepeatCount: Int = 0
+    // Whether A-B repeat mode is currently active
+    private var isABRepeatActive: Bool = false
 
     
     //hold the repeat verses and chapters string
@@ -61,16 +61,9 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
         self.isPaused = false
         self.repeats = Repeats()
         self.currentVerseIndex = 0
-        self.fullRepeatEndIndex = 1
-        self.isFullRepeat = false
-        self.savedCurrentVerseIndex = 0
-        self.fullRepeatCount = 0
-        self.currentRepeatCount = 0
-        self.abRepeatStartIndex = 1
-        self.abRepeatEndIndex = 0
-        self.didFindVerseStart = false
-        self.didFindVerseEnd = false
-        self.setupABRepeat = false
+        self.abRepeatStartIndex = -1
+        self.abRepeatEndIndex = -1
+        self.isABRepeatActive = false
     }
 
     func initDelegation(_ delegate: AudioDelegate?){
@@ -80,105 +73,58 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func setPlayVerse(_ verseToPlay: Verse? = nil) {
-        if(verseToPlay != nil) {
-            self.currentVerseIndex = dollar.currentChapter.verses.index(of: verseToPlay!)
-            if(self.setupABRepeat == true) {
-                self.fullRepeatEndIndex = self.currentVerseIndex
-                setupABRepeatPlayer()
-                resetABRepeat()
-            }
+        if let verse = verseToPlay {
+            self.currentVerseIndex = dollar.currentChapter.verses.index(of: verse) ?? 0
         }
     }
     
     //play the passed verse index
     //@param verseToPlay verse to play or the first one if nothing is passed
     @objc func play(_ verseToPlay: Verse? = nil){
-        // cute little demo
-        let mpic = MPNowPlayingInfoCenter.default();
+        let mpic = MPNowPlayingInfoCenter.default()
         var dic = [String: AnyObject]()
         dic[MPMediaItemPropertyTitle] = kApplicationDisplayName as AnyObject
         dic[MPMediaItemPropertyArtist] = "\(dollar.currentChapter.name) - \(dollar.currentReciter.name)" as AnyObject
-        dic[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(image: UIImage(named: "launch-screen")!)
-        mpic.nowPlayingInfo = dic
-
-
-        var verse: Verse!
-        let audioChapter: AudioChapter = dollar.currentReciter.audioChapters[dollar.currentChapter.id]
-        if verseToPlay == nil {
-            verse = dollar.currentChapter.verses[0]
-            self.currentVerseIndex = 0
-            setupABRepeatPlayer()
-            resetABRepeat()
-            if(self.currentVerseIndex > 0) {
-                verse = dollar.currentChapter.verses[currentVerseIndex]
+        if #available(iOS 10.0, *) {
+            if let img = UIImage(named: "launch-screen") {
+                dic[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: img.size) { _ in img } as AnyObject
             }
         }
-        else{
+        mpic.nowPlayingInfo = dic
+
+        let verse: Verse
+        if let verseToPlay = verseToPlay {
             verse = verseToPlay
-            // added 03/03/2017 - OM
-            setupABRepeatPlayer()
-            self.currentVerseIndex = dollar.currentChapter.verses.index(of: verse)
+            self.currentVerseIndex = dollar.currentChapter.verses.index(of: verse) ?? 0
+        } else {
+            self.currentVerseIndex = isABRepeatActive ? abRepeatStartIndex : 0
+            verse = dollar.currentChapter.verses[self.currentVerseIndex]
         }
-        
+
+        // Reset A-B phase when starting fresh
+        if verseToPlay == nil {
+            refreshABRepeatState()
+        }
+
         delegate?.scrollToVerse(self.currentVerseIndex, searchText: "")
-        
-        let path: String  = audioChapter.verseAudioPath(verse)
-        let url:URL = URL(fileURLWithPath: path, isDirectory: false)
-        var error: NSError?
-        
-        //remove the old player if exist
+
+        let audioChapter: AudioChapter = dollar.currentReciter.audioChapters[dollar.currentChapter.id]
+        let path: String = audioChapter.verseAudioPath(verse)
+        let url: URL = URL(fileURLWithPath: path, isDirectory: false)
+
         self.isPaused = false
-        
-        // create a new instance of the player the new data
+        var error: NSError?
         do {
             self.player = try AVAudioPlayer(contentsOf: url)
-        } catch let error1 as NSError {
-            error = error1
+        } catch let e as NSError {
+            error = e
         }
         self.player?.enableRate = true
         setDefaultRate()
         self.player?.prepareToPlay()
         self.player?.delegate = self
-        //set the number of loops
-        if(isFullRepeat == true || currentVerseIndex == 0) {
-            self.player?.numberOfLoops = 0
-        } else {
-            self.player?.numberOfLoops = self.repeats.verseCount
-        }
+        self.player?.numberOfLoops = isABRepeatActive ? 0 : self.repeats.verseCount
 
-        switch(self.repeats.chapterCount) {
-        case 0:
-            self.fullRepeatCount = 0
-            break
-        case 1:
-            self.fullRepeatCount = 1
-            break
-        case 3:
-            self.fullRepeatCount = 3
-            break
-        case 4:
-            self.fullRepeatCount = 4
-            break
-        case 5:
-            self.fullRepeatCount = 5
-            break
-        case 6:
-            self.fullRepeatCount = 10
-            break
-        case 7:
-            self.fullRepeatCount = 15
-            break
-        case 8:
-            self.fullRepeatCount = 20
-            break
-        case 9:
-            self.fullRepeatCount = 25
-            break;
-        default:
-            self.fullRepeatCount = 1
-        }
-
-        // if no error were found, play the verse
         if error == nil {
             self.player?.play()
             self.isPaused = false
@@ -194,93 +140,185 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
     }
 
     @objc func resetABRepeat() {
-        self.currentVerseIndex = abRepeatStartIndex
+        abPhase = .introNewVerse
+        abPhaseNewVerseIndex = abRepeatStartIndex
+        abSequenceRepeatCount = 0
+        if isABRepeatActive {
+            currentVerseIndex = abRepeatStartIndex
+        }
     }
     
     // MARK: AVAudioPlayerDelegate
 
-
+    /// Rebuild A-B repeat bounds from the stored markers and reset phase state.
     @objc func setupABRepeatPlayer() {
-        //if(!self.setupABRepeat) {
-            self.setupABRepeat = true
-            self.abRepeatEndIndex = dollar.currentChapter.verses.count - 1
-            for verse in dollar.currentChapter.verses {
-                if ABRepeatService.sharedInstance().has(verse) {
-                    if(!didFindVerseStart) {
-                        didFindVerseStart = true
-                        currentVerseIndex = verse.id
-                        abRepeatStartIndex = currentVerseIndex
-                        fullRepeatEndIndex = currentVerseIndex + 1
-                        continue
-                    }
-                    if(!didFindVerseEnd && didFindVerseStart) {
-                        didFindVerseEnd = true
-                        abRepeatEndIndex = verse.id
-                        break
-                    }
-                }
+        var foundStart = false
+        var startIdx = -1
+        var endIdx = -1
+
+        for (arrayIndex, verse) in dollar.currentChapter.verses.enumerated() {
+            guard ABRepeatService.sharedInstance().has(verse) else { continue }
+            if !foundStart {
+                foundStart = true
+                startIdx = arrayIndex
+            } else {
+                endIdx = arrayIndex
+                break
             }
-        //}
+        }
+
+        if startIdx >= 0 && endIdx > startIdx {
+            abRepeatStartIndex = startIdx
+            abRepeatEndIndex = endIdx
+            isABRepeatActive = true
+        } else if startIdx >= 0 {
+            // Only start marker set — treat start as single-verse A-B
+            abRepeatStartIndex = startIdx
+            abRepeatEndIndex = startIdx
+            isABRepeatActive = true
+        } else {
+            abRepeatStartIndex = -1
+            abRepeatEndIndex = -1
+            isABRepeatActive = false
+        }
+        refreshABRepeatState()
+    }
+
+    /// Resets the A-B phase tracking to the beginning of the sequence.
+    private func refreshABRepeatState() {
+        abPhase = .introNewVerse
+        abPhaseNewVerseIndex = isABRepeatActive ? abRepeatStartIndex : 0
+        abSequenceRepeatCount = 0
+        if isABRepeatActive {
+            currentVerseIndex = abRepeatStartIndex
+        }
     }
 
     func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        // start playing the first verses
-        if currentVerseIndex < dollar.currentChapter.verses.count - 1 && currentVerseIndex < abRepeatEndIndex {
-            if (currentVerseIndex == 0 || currentVerseIndex == abRepeatStartIndex) && isFullRepeat == false { // first first ayah then continue to next one
-                currentVerseIndex = currentVerseIndex + 1
-                play(dollar.currentChapter.verses[currentVerseIndex])
-            } else {
-                if(currentVerseIndex == fullRepeatEndIndex) { // now start full repeat
-                    isFullRepeat = true
-                    savedCurrentVerseIndex = currentVerseIndex
-                    currentVerseIndex = abRepeatStartIndex
-                    fullRepeatEndIndex = fullRepeatEndIndex + 1
-                    isFullRepeat = true
-                    //resetPlayer()
-                    //resetABRepeat()
-                    play(dollar.currentChapter.verses[abRepeatStartIndex])
-                } else {
-                    currentVerseIndex = currentVerseIndex + 1
-                    if(currentVerseIndex == fullRepeatEndIndex) {
-                        if(currentRepeatCount >= fullRepeatCount) {
-                            isFullRepeat = false
-                            currentRepeatCount = 0
-                        } else {
-                            currentRepeatCount = currentRepeatCount + 1
-                            currentVerseIndex = abRepeatStartIndex
-                            //resetPlayer()
-                            //resetABRepeat()
-                            play(dollar.currentChapter.verses[abRepeatStartIndex])
-                        }
-                    }
-                    play(dollar.currentChapter.verses[currentVerseIndex])
-                }
+        let verses = dollar.currentChapter.verses
+        let total = verses.count
 
+        if isABRepeatActive && abRepeatStartIndex >= 0 && abRepeatEndIndex >= abRepeatStartIndex {
+            handleABRepeatFinished(verses: verses)
+        } else {
+            handleNormalPlaybackFinished(verses: verses, total: total)
+        }
+    }
+
+    // MARK: - A-B Repeat Logic
+    //
+    // Incremental memorisation algorithm:
+    //   Phase 1  – play verse A alone
+    //   Phase 2  – play verse A+1 alone, then play the sequence A…A+1
+    //   Phase 3  – play verse A+2 alone, then play the sequence A…A+2
+    //   …repeat until phase end reaches B, then loop per chapterCount.
+    //
+    private func handleABRepeatFinished(verses: [Verse]) {
+        switch abPhase {
+        case .introNewVerse:
+            // Finished introducing the new single verse.
+            if abPhaseNewVerseIndex == abRepeatStartIndex {
+                // Only one verse so far — go straight to advancing the phase.
+                advanceABPhase(verses: verses)
+            } else {
+                // Switch to playing the accumulated sequence from start.
+                abPhase = .playSequence
+                currentVerseIndex = abRepeatStartIndex
+                playCurrentVerse(verses)
+            }
+
+        case .playSequence:
+            let nextIndex = currentVerseIndex + 1
+            if nextIndex <= abPhaseNewVerseIndex {
+                // Continue playing the next verse in the sequence.
+                currentVerseIndex = nextIndex
+                playCurrentVerse(verses)
+            } else {
+                // Reached the end of this sequence run.
+                abSequenceRepeatCount += 1
+                let targetRepeats = max(1, sequenceRepeatCountFromSettings())
+                if abSequenceRepeatCount < targetRepeats {
+                    // Repeat the sequence from start.
+                    currentVerseIndex = abRepeatStartIndex
+                    playCurrentVerse(verses)
+                } else {
+                    advanceABPhase(verses: verses)
+                }
             }
         }
-        //all verses has been played, check what to do next
-        else{
+    }
+
+    /// Move to the next verse phase, or complete the A-B cycle.
+    private func advanceABPhase(verses: [Verse]) {
+        abSequenceRepeatCount = 0
+        if abPhaseNewVerseIndex < abRepeatEndIndex {
+            // Introduce the next new verse.
+            abPhaseNewVerseIndex += 1
+            abPhase = .introNewVerse
+            currentVerseIndex = abPhaseNewVerseIndex
+            playCurrentVerse(verses)
+        } else {
+            // Full A-B cycle complete — apply chapter repeat policy.
+            handleABCycleComplete(verses: verses)
+        }
+    }
+
+    private func handleABCycleComplete(verses: [Verse]) {
+        switch self.repeats.chapterCount {
+        case 0:
+            // Play chapter by chapter
+            delegate?.playNextChapter()
+        case 1:
+            // Play once — stop here.
+            refreshABRepeatState()
+            delegate?.scrollToVerse(abRepeatStartIndex, searchText: "")
+        default:
+            // Keep repeating — restart from the beginning of the A-B sequence.
+            refreshABRepeatState()
+            currentVerseIndex = abRepeatStartIndex
+            playCurrentVerse(verses)
+        }
+    }
+
+    private func playCurrentVerse(_ verses: [Verse]) {
+        guard currentVerseIndex >= 0 && currentVerseIndex < verses.count else { return }
+        delegate?.scrollToVerse(currentVerseIndex, searchText: "")
+        play(verses[currentVerseIndex])
+    }
+
+    /// Number of times the accumulated sequence should play before advancing.
+    private func sequenceRepeatCountFromSettings() -> Int {
+        let count = self.repeats.chapterCount
+        switch count {
+        case 0: return 1
+        case 1: return 1
+        case 2: return 2
+        case 3: return 3
+        case 4: return 4
+        case 5: return 5
+        case 6: return 10
+        case 7: return 15
+        case 8: return 20
+        case 9: return 25
+        default: return 1
+        }
+    }
+
+    // MARK: - Normal (non-AB) Playback Logic
+
+    private func handleNormalPlaybackFinished(verses: [Verse], total: Int) {
+        if currentVerseIndex < total - 1 {
+            currentVerseIndex += 1
+            play(verses[currentVerseIndex])
+        } else {
             currentVerseIndex = 0
-            if(didFindVerseStart == true) {
-                currentVerseIndex = abRepeatStartIndex
-            }
-            
-            //resetPlayer()
-            //setupABRepeatPlayer()
-            
-            //case: 'Play chapter by chapter'
-            //check if we can play the next chapter
-            if self.repeats.chapterCount == 0 {
-                //ask the delegate if we can play the next chapter
+            switch self.repeats.chapterCount {
+            case 0:
                 delegate?.playNextChapter()
-            }
-            //case: 'Play chapter once'
-            else if self.repeats.chapterCount == 1 {
-                // do nothing, just stop here...
-            }
-            //case: 'Keep playing chapter'
-            else if self.repeats.chapterCount >= 2 {
-                play(dollar.currentChapter.verses[abRepeatStartIndex])
+            case 1:
+                break  // play once — stop
+            default:
+                play(verses[0])
             }
         }
     }
@@ -314,7 +352,7 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
         let total = dollar.currentChapter.verses.count
         if currentVerseIndex < total - 1 {
             currentVerseIndex = currentVerseIndex + 1
-            fullRepeatEndIndex = currentVerseIndex
+            refreshABRepeatState()
             play(dollar.currentChapter.verses[currentVerseIndex])
             self.isPaused = false
         }
@@ -324,7 +362,7 @@ class AudioService:NSObject, AVAudioPlayerDelegate {
     @objc func playPrevious() {
         if currentVerseIndex > 0 {
             currentVerseIndex = currentVerseIndex - 1
-            fullRepeatEndIndex = currentVerseIndex
+            refreshABRepeatState()
             play(dollar.currentChapter.verses[currentVerseIndex])
             self.isPaused = false
         }

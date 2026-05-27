@@ -62,9 +62,16 @@ let kSpecialReciterFolderFormatIds = [6, 7, 8]
 //Style
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+private func dynamicColor(light: UIColor, dark: UIColor) -> UIColor {
+    if #available(iOS 13.0, *) {
+        return UIColor { tc in tc.userInterfaceStyle == .dark ? dark : light }
+    }
+    return light
+}
+
 //App
-let kAppColor: UIColor = UIColor(red: 79, green: 106, blue: 173) //UIColor(red: 0.588, green: 0.706, blue: 0.398, alpha: 1)
-let kImageWaterMarkColor = UIColor(red: 79, green: 106, blue: 173) //UIColor(red: 0.588, green: 0.706, blue: 0.398, alpha: 1)
+let kAppColor: UIColor = UIColor(red: 79, green: 106, blue: 173)
+let kImageWaterMarkColor = UIColor(red: 79, green: 106, blue: 173)
 let kImageWaterMarkFont: UIFont = UIFont(name: "HelveticaNeue-Light", size: 12.0)!
 
 //NavigationBar
@@ -75,7 +82,7 @@ let kUINavigationBarTitleColor: UIColor = UIColor(red: 245, green: 245, blue: 24
 let kUINavigationBarTitleShadowSize: CGSize = CGSize(width: 0, height: 1)
 
 //Section
-let kSectionBackgrondColor = UIColor(red: 79, green: 106, blue: 173) //UIColor(red: 0.588, green: 0.706, blue: 0.398, alpha: 0.9)
+let kSectionBackgrondColor = UIColor(red: 79, green: 106, blue: 173)
 let kSectionBackgrondFont: UIFont = UIFont(name: "HelveticaNeue-Light", size: 16.0)!
 
 //More table
@@ -90,12 +97,18 @@ let kUIStatusBarStyle: UIStatusBarStyle = UIStatusBarStyle.lightContent //White 
 
 //Categories & Settings Table
 let kCellTextLabelFont: UIFont = UIFont(name: "HelveticaNeue-Light", size: 20.0)!
-let kCellTextLabelColor: UIColor = UIColor(red: 101, green: 112, blue: 122)
+let kCellTextLabelColor: UIColor = dynamicColor(
+    light: UIColor(red: 101, green: 112, blue: 122),
+    dark: UIColor(red: 200, green: 200, blue: 210)
+)
 let kEmptyCategoryIcon = "empty-category.png"
 
 //Categories Table
 let kHeightForRowAtIndexPath: CGFloat = 60.0 //the cell height
-let kSelectedCellBackgroudColor: UIColor = UIColor(red: 244, green: 244, blue: 244)
+let kSelectedCellBackgroudColor: UIColor = dynamicColor(
+    light: UIColor(red: 244, green: 244, blue: 244),
+    dark: UIColor(red: 50, green: 50, blue: 60)
+)
 
 //Settings Table
 let kSettingTableBackgroundImage: String = "SettingTableBackgroundImage.png"
@@ -128,9 +141,18 @@ let kPDMSArabicSearchFont: UIFont = UIFont(name: pdms_quran.0, size: 20.0)!
 //let kHizbTableCellColor: UIColor = UIColor(red: 234, green: 231, blue: 179)
 //let kVerseCellyOddColor: UIColor = UIColor(red: 243, green: 251, blue: 229)
 //let kVerseCellyEvenColor: UIColor = UIColor(red: 247, green: 250, blue: 250)
-let kHizbTableCellColor: UIColor = UIColor(red: 219, green: 220, blue: 225)
-let kVerseCellyOddColor: UIColor = UIColor(red: 207, green: 213, blue: 229)
-let kVerseCellyEvenColor: UIColor = UIColor(red: 247, green: 250, blue: 250)
+let kHizbTableCellColor: UIColor = dynamicColor(
+    light: UIColor(red: 219, green: 220, blue: 225),
+    dark: UIColor(red: 55, green: 58, blue: 75)
+)
+let kVerseCellyOddColor: UIColor = dynamicColor(
+    light: UIColor(red: 207, green: 213, blue: 229),
+    dark: UIColor(red: 30, green: 33, blue: 48)
+)
+let kVerseCellyEvenColor: UIColor = dynamicColor(
+    light: UIColor(red: 247, green: 250, blue: 250),
+    dark: UIColor(red: 22, green: 24, blue: 36)
+)
 
 //Download Table
 let kDownloadFont: UIFont = isIpad ? UIFont(name: "HelveticaNeue-Light", size: 14.0)! : UIFont(name: "HelveticaNeue-Light", size: 12.0)!
