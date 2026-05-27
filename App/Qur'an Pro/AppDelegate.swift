@@ -10,6 +10,7 @@
 import UIKit
 import AVFoundation
 import MessageUI
+import UserNotifications
 
 enum UIUserInterfaceIdiom : Int {
     case unspecified
@@ -68,8 +69,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
             ]
         }
         
-        //Style the status bar
-        UIApplication.shared.statusBarStyle = kUIStatusBarStyle
+        // Status bar style is set via UIStatusBarStyle in Info.plist
         
         UIApplication.shared.beginReceivingRemoteControlEvents()
         self.becomeFirstResponder()
@@ -83,8 +83,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
         // Bookmarks service
         BookmarkService.sharedInstance()
         
-        if(UIApplication.instancesRespond(to: #selector(UIApplication.registerUserNotificationSettings(_:)))) {
-            UIApplication.shared.registerUserNotificationSettings(UIUserNotificationSettings(types: [.alert, .badge], categories: nil))
+        if #available(iOS 10.0, *) {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge]) { _, _ in }
         }
 
         var error: NSError?
@@ -174,7 +174,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, AppiraterDelegate, MFMail
         try! AVAudioSession.sharedInstance().setActive(true)
         
         if appUrlToOpen != nil {
-            UIApplication.shared.openURL(URL(string: appUrlToOpen!)!)
+            UIApplication.shared.open(URL(string: appUrlToOpen!)!)
             appUrlToOpen = nil
         }
     }

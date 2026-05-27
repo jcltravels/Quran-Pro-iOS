@@ -15,7 +15,7 @@ extension UIViewController {
     @objc func askUserForPurchasingProVersion(_ logsKey: String) {
         //NSNotificationCenter.defaultCenter().postNotificationName(kOpenSKControllerNotification, object: nil,  userInfo: nil)
         FlurryEvent.logPurchase(logsKey)
-        UIApplication.shared.openURL(URL(string: kAppUrl.localizeWithFormat(kQuranProId))!)
+        UIApplication.shared.open(URL(string: kAppUrl.localizeWithFormat(kQuranProId))!)
     }
     
     @objc public func productViewControllerDidFinish(_ viewController: SKStoreProductViewController) {

@@ -46,7 +46,12 @@ class CenterViewController: UIViewController, UITableViewDelegate, UITableViewDa
         originalTitleView = self.navigationItem.titleView
         originalLeftBarButtonItems = self.navigationItem.leftBarButtonItems
         currentAudioChapter = dollar.currentReciter.audioChapters[dollar.currentChapter.id]
-        activityIndicatorView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.white)
+        if #available(iOS 13.0, *) {
+            activityIndicatorView = UIActivityIndicatorView(style: .medium)
+            activityIndicatorView.color = .white
+        } else {
+            activityIndicatorView = UIActivityIndicatorView(style: UIActivityIndicatorView.Style.white)
+        }
         activityIndicatorView.startAnimating()
         progress.setProgress(0, animated: false)
         view.sendSubviewToBack(tableView)
