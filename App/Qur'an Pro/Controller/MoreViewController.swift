@@ -219,7 +219,7 @@ class MoreViewController: UIViewController, UITableViewDelegate, UITableViewData
             footerView!.numberOfLines = 0
             footerView!.textAlignment = NSTextAlignment.center
             footerView!.font = kMoreTableFooterFont
-            footerView!.textColor = UIColor.black
+            footerView!.textColor = UIColor.label
             return footerView
         }
         return nil
